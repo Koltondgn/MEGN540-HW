@@ -29,6 +29,7 @@
 */
 
 #include "Filter.h"
+#include <stdio.h>
 
 /**
  * Function Filter_Init initializes the filter given two float arrays and the order of the filter.  Note that the
@@ -49,6 +50,22 @@
  */
 void Filter_Init( Filter_Data_t* p_filt, float* numerator_coeffs, float* denominator_coeffs, uint8_t order )
 {
+    // initalize all 4 ring buffers set starting index's
+    rb_initialize_F( &p_filt->numerator );
+    rb_initialize_F( &p_filt->denominator );
+    rb_initialize_F( &p_filt->out_list );
+    rb_initialize_F( &p_filt->in_list );
+
+    // num coefficents = order + 1
+    for ( uint8_t i = 0; i <= order; i++ ) {
+        // push back all coefficients 
+        rb_push_back_F( &p_filt->numerator, numerator_coeffs[i] );
+        rb_push_back_F( &p_filt->denominator, denominator_coeffs[i] );
+        // initalize in and out list to 0
+        rb_push_back_F( &p_filt->in_list, 0 );
+        rb_push_back_F( &p_filt->out_list, 0 );
+    }
+
     return;
 }
 
@@ -60,6 +77,21 @@ void Filter_Init( Filter_Data_t* p_filt, float* numerator_coeffs, float* denomin
  */
 void Filter_ShiftBy( Filter_Data_t* p_filt, float shift_amount )
 {
+    Filter_Data_t temp_shift; 
+    rb_initialize_F( &temp_shift.out_list );
+    rb_initialize_F( &temp_shift.in_list );
+
+    // pop off in and out list to temp then push back on ? 
+    while ( rb_length_F( &p_filt->in_list ) != 0 ) {
+        rb_push_back_F( &temp_shift.in_list, rb_pop_front_F( &p_filt->in_list ) );
+        rb_push_back_F( &temp_shift.out_list, rb_pop_front_F( &p_filt->out_list ) );
+    }
+
+    while ( rb_length_F( &temp_shift.in_list ) != 0 ) {
+        rb_push_back_F( &p_filt->in_list, rb_pop_front_F( &temp_shift.in_list ) + shift_amount );
+        rb_push_back_F( &p_filt->out_list, rb_pop_front_F( &temp_shift.out_list ) + shift_amount );
+    }
+
     return;
 }
 
@@ -71,6 +103,19 @@ void Filter_ShiftBy( Filter_Data_t* p_filt, float shift_amount )
  */
 void Filter_SetTo( Filter_Data_t* p_filt, float amount )
 {
+    // length of values in list 
+    uint8_t length = rb_length_F( &p_filt->in_list );
+
+    // loop through values and pop old and push new
+    for (uint8_t i = 0; i < length; i++)
+    {
+        rb_pop_front_F( &p_filt->in_list );
+        rb_push_back_F( &p_filt->in_list, amount );
+        rb_pop_front_F( &p_filt->out_list );
+        rb_push_back_F( &p_filt->out_list, amount );
+
+    }
+    
     return;
 }
 
@@ -82,7 +127,94 @@ void Filter_SetTo( Filter_Data_t* p_filt, float amount )
  */
 float Filter_Value( Filter_Data_t* p_filt, float value )
 {
-    return 0;
+    // length values 
+    uint8_t length = rb_length_F( &p_filt->numerator );
+    
+    float in_sum = 0;
+    float out_sum = 0;
+
+
+    // print_rb(&p_filt->in_list);
+
+    // pop oldest and add newest 
+    rb_pop_front_F( &p_filt->in_list ); 
+    // rb_push_back_F( &p_filt->in_list , value ); 
+
+    // stored num b0, b1...
+    // stored den a0, a1...
+    // constants a0 and b0 
+    float b0 = rb_pop_front_F( &p_filt->numerator );
+    float a0 = rb_pop_front_F( &p_filt->denominator );
+    float in_n = value;
+    float out_n = rb_pop_front_F( &p_filt->out_list ); // pop oldest y_1 where y_n is now
+    
+    rb_push_back_F( &p_filt->numerator, b0 );
+    rb_push_back_F( &p_filt->denominator , a0 );
+    // rb_push_back_F( &p_filt->in_list , in_n );
+    // rb_push_back_F( &p_filt->out_list , out_n );  // oldest push but will remove 
+
+
+    // print_rb(&p_filt->out_list);
+    // print_rb(&p_filt->out_list);
+    
+
+    // printf( "In and out sum %f, %f, %f, %f, %f, %f\n",a0, b0, in_n, out_n, value, b0*in_n );
+
+
+    in_sum += b0 * in_n; 
+
+    // inputs
+    for (uint8_t i = 0; i < length - 1; i++)
+    {
+
+        // pop input back and push front go from 1 to N
+        float num_b = rb_pop_front_F( &p_filt->numerator );
+        float den_a = rb_pop_front_F( &p_filt->denominator ); 
+        float in_x = rb_pop_back_F( &p_filt->in_list ); 
+        float out_y = rb_pop_back_F( &p_filt->out_list ); 
+
+        rb_push_back_F( &p_filt->numerator, num_b );
+        rb_push_back_F( &p_filt->denominator , den_a );
+        rb_push_front_F( &p_filt->in_list , in_x );
+        rb_push_front_F( &p_filt->out_list , out_y );
+
+        
+        // printf( "x, y, %f, %f\n",rb_pop_back_F( &p_filt->in_list ), rb_pop_back_F( &p_filt->out_list ) );
+
+        
+        // print_rb(&p_filt->in_list);
+        // print_rb(&p_filt->out_list);
+        // // printf( "x, y, %f, %f\n",in_x, out_y );
+
+        
+        // print_rb(&p_filt->out_list);
+
+
+        // printf( "In and out sum %i, %f, %f, %f, %f\n",i ,num_b, den_a, in_x, out_y );
+
+
+        in_sum += num_b * in_x;
+        out_sum += den_a * out_y;
+        // printf( "In and out sum %i, %f, %f, %f, %f, %f, %f, %f\n", i, num_b, den_a, in_x, out_y, in_sum, out_sum, value );
+
+    }
+
+    // calculate output value 
+    float out_val = ( in_sum - out_sum ) / a0;
+
+    printf("out val %f\n", out_val);
+
+
+    // once complete push back newest x
+    rb_push_back_F( &p_filt->in_list , in_n );
+    // push back newest y 
+    rb_push_back_F( &p_filt->out_list , out_val );
+
+    // pop oldest out push newest 
+    // rb_pop_front_F( &p_filt->out_list ); 
+    // rb_push_back_F( &p_filt->out_list , out_val );
+
+    return out_val;
 }
 
 /**
@@ -91,5 +223,20 @@ float Filter_Value( Filter_Data_t* p_filt, float value )
  */
 float Filter_Last_Output( Filter_Data_t* p_filt )
 {
-    return 0;
+    // just return the newest lement in out_list, index is length - 1
+    return rb_get_F( &p_filt->out_list, rb_length_F( &p_filt->out_list ) - 1);
+}
+
+// Function print_rb 
+// printing values in a given ring buffer
+void print_rb(Ring_Buffer_Float_t* print_f) {
+    
+    printf("\n");
+    for (uint8_t i = 0; i < rb_length_F( print_f ); i++)
+    {
+        float te = rb_pop_front_F( print_f );
+        printf("%f, ", te );
+        rb_push_back_F( print_f, te );
+    }
+    printf("\n\n");
 }

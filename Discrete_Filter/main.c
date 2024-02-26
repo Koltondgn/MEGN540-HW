@@ -27,7 +27,7 @@
     SOFTWARE.
 
 */
-
+ 
 #include "Filter.h"
 
 #include <math.h>  // max
@@ -45,8 +45,17 @@ int main()
 
     // printf("Filter order is: %li\n", sizeof(a_coeff)/sizeof(float) - 1 );
 
+    
+
     Filter_Data_t moving_average;
     Filter_Init( &moving_average, b_coeff, a_coeff, sizeof( a_coeff ) / sizeof( float ) - 1 );
+
+    // printf("Length num: %i\n", rb_length_F( &moving_average.numerator ) );
+    // printf("Length den: %i\n", rb_length_F( &moving_average.denominator ) );
+    // printf("Length in: %i\n", rb_length_F( &moving_average.in_list ) );
+    // printf("Length out: %i\n", rb_length_F( &moving_average.out_list ) );
+
+
 
     total_score++;
     if( rb_length_F( &moving_average.denominator ) == filter_order + 1 ) {
@@ -232,6 +241,8 @@ int main()
     total_score++;
     if( fabs( filter_out - filter_exp ) < 1e-5 ) {
         running_score++;
+        // printf( "WORKING in filtering on Filter_Value call for real filter.\t is: %f \texp:%f\n", filter_out, filter_exp );
+
     } else {
         printf( "Error in filtering on Filter_Value call for real filter.\t is: %f \texp:%f\n", filter_out, filter_exp );
     }
@@ -242,6 +253,7 @@ int main()
         running_score += 10;
     } else {
         printf( "Error in Filter_Last_Output wrong value returned.\n" );
+        printf( "Error %f, correct %f", Filter_Last_Output( &moving_average ), filt_last );
     }
 
     printf( "Testing Done!\n\tScore %i / %i: %2.2f%%\n", running_score, total_score, 100.0 * running_score / total_score );
